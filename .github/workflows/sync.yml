@@ -1,0 +1,31 @@
+name: Sync Upstream
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    - cron: '0 0 */3 * *'
+  workflow_dispatch:   # 允许手动点击按钮立即同步
+
+jobs:
+  sync_latest_from_upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+
+      - name: Sync upstream changes
+        id: sync
+        uses: aieri/sync-upstream-repo@v1.3.0
+        with:
+          upstream_repo: "https://github.com/WeMingT/zaimanhua-auto-chick-in.git"
+          upstream_branch: "main"
+          downstream_branch: "main"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for errors
+        if: failure()
+        run: |
+          echo "同步失败，可能存在冲突，请手动处理。"
+          exit 1
