@@ -5,8 +5,8 @@ permissions:
 
 on:
   schedule:
-    - cron: '0 0 */3 * *'
-  workflow_dispatch:   # 允许手动点击按钮立即同步
+    - cron: '0 0 */3 * *' # 每3天运行一次
+  workflow_dispatch:      # 允许手动运行
 
 jobs:
   sync_latest_from_upstream:
@@ -14,18 +14,37 @@ jobs:
     steps:
       - name: Checkout target repo
         uses: actions/checkout@v4
-
-      - name: Sync upstream changes
-        id: sync
-        uses: aieri/sync-upstream-repo@v1.3.0
         with:
-          upstream_repo: "https://github.com/WeMingT/zaimanhua-auto-chick-in.git"
-          upstream_branch: "main"
-          downstream_branch: "main"
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # 使用 PAT 可以触发后续的 Workflow。如果不需要触发其他脚本，可以改回 ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0 # 获取完整历史记录，防止合并失败
+
+      - name: Config Git Identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync Upstream Changes
+        run: |
+          # 1. 添加上游仓库
+          git remote add upstream https://github.com/WeMingT/zaimanhua-auto-chick-in.git
+
+          # 2. 获取上游最新代码
+          git fetch upstream main
+
+          # 3. 切换到本地 main 分支
+          git checkout main
+
+          # 4. 【关键】强制重置：将本地 main 分支重置为和上游一模一样
+          # 这样做可以避免冲突报错，但注意：如果你在本地 main 改过代码，会被覆盖。
+          git reset --hard upstream/main
+
+          # 5. 推送到自己的仓库
+          # 使用 --force 确保即使有差异也能成功更新
+          git push origin main --force
 
       - name: Check for errors
         if: failure()
         run: |
-          echo "同步失败，可能存在冲突，请手动处理。"
+          echo "同步失败，请检查网络或仓库权限。"
           exit 1
